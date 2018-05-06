@@ -1,5 +1,6 @@
 
 import re
+import json
 import datetime
 from nltk.stem import PorterStemmer
 
@@ -10,11 +11,13 @@ class QueryAnalyzer(object):
     finally return the query results
     '''
 
-    def __init__(self):
+    def __init__(self, cursor):
         self.ps = PorterStemmer()
+        self.cursor = cursor
+        self.lyrics_path = "data/lyrics/raw/"
 
 
-    def analyze(self, query_str, conn):
+    def analyze(self, query_str):
         '''
         analyze the query string and
         return the lyric file index list
@@ -26,10 +29,10 @@ class QueryAnalyzer(object):
         # split string to tokens and turn it to postfix
         postfix_tokens = self.split_tokens(query_str)
 
-        lyrics_file_idxs = self.query_computation(postfix_tokens, conn)
+        lyrics_file_idxs = self.query_computation(postfix_tokens)
 
         # display results
-        self.display_query_results(lyrics_file_idxs, conn)
+        self.display_query_results(lyrics_file_idxs)
 
 
 
@@ -98,7 +101,7 @@ class QueryAnalyzer(object):
         return postfix_tokens
 
 
-    def query_computation(self, query_tokens, conn):
+    def query_computation(self, query_tokens):
         '''
         compute the result of query expression
         with set theory, each query word represents
@@ -106,7 +109,7 @@ class QueryAnalyzer(object):
         :return: the final result of file indexes
         '''
 
-        cursor = conn.execute('SELECT file_id FROM word_file_count')
+        cursor = self.cursor.execute('SELECT file_para_id FROM word_file_count')
         R = [row[0] for row in cursor]
         R = list(set(R))
 
@@ -116,7 +119,8 @@ class QueryAnalyzer(object):
         for token in query_tokens:
             # if is operand
             if token not in operators:
-                operands.append(self.get_file_idxs(token, conn))
+                token = self.token_to_id(token)
+                operands.append(token)
             else: # is operator
                 if token == 'AND':
                     assert len(operands) >= 2, 'query expression error!'
@@ -136,8 +140,48 @@ class QueryAnalyzer(object):
 
         return operands[0]
 
+    def token_to_id(self, token):
+        '''
+        convert token to file ID
+        '''
+        # support wildcard (*)
+        if '*' not in token:
+            return self.get_file_idxs(token)
 
-    def get_file_idxs(self, word, conn):
+        token = '$' + token + '$'
+        sub_tokens = re.split('\*', token)
+
+        # words that satisfy the condition
+        b_grams = []
+
+        for sub_token in sub_tokens:
+            if len(sub_token) < 2:
+                continue
+
+            for i in range(len(sub_token)-1):
+                b_gram = sub_token[i: i+2]
+                b_grams.append(b_gram)
+
+        b_grams = list(set(b_grams))
+
+        # query words with b-gram
+        results = self.cursor.execute('SELECT word FROM word_b_gram WHERE b_gram IN (%s)'
+                            % ("?," * len(b_grams))[:-1], b_grams)
+
+        results = results.fetchall()
+        words = [result[0] for result in results]
+
+        # get file index
+        file_idxs = []
+        for word in words:
+            file_idxs.extend(self.get_file_idxs(word))
+
+        file_idxs = list(set(file_idxs))
+
+        return file_idxs
+
+
+    def get_file_idxs(self, word):
         '''
         given a word, return the indexes of
         lyrics files that contain the word
@@ -148,28 +192,45 @@ class QueryAnalyzer(object):
 
         result = []
 
-        cursor = conn.execute('SELECT file_id, count FROM word_file_count WHERE word=?', [word])
+        cursor = self.cursor.execute('SELECT file_para_id, count FROM word_file_count WHERE word=?', [word])
 
         for row in cursor:
             result.append(row[0])
 
         return result
 
-    def display_query_results(self, file_idxs, conn):
+    def display_query_results(self, file_idxs):
         '''
         display the results of query
         '''
 
-        cursor = conn.execute('SELECT file_name FROM lyric_files WHERE file_id IN (%s)'
+        results = self.cursor.execute('SELECT file_name, para_id FROM lyric_files WHERE file_para_id IN (%s)'
                               % ("?," * len(file_idxs))[:-1], file_idxs)
 
         self.end_time = datetime.datetime.now()
         query_time = (self.end_time - self.start_time).microseconds
 
-        print len(file_idxs), 'results found. (in', query_time, 'ms)'
+        print len(file_idxs), 'results found. (in', query_time, 'ms)' + '\n'
 
-        for row in cursor:
-            print(row[0])
+        results = results.fetchall()
+
+        for (file_name, file_para_idx) in results:
+            # cut .json
+            lyric_name = file_name[: -5]
+            # substitute '_' with ' '
+            re.sub(r'_', ' ', lyric_name)
+
+            # display query results
+            print "found in " + lyric_name + ", paragraph " + str(file_para_idx + 1) + '\n'
+            with open(self.lyrics_path + file_name) as fin:
+                sample = json.load(fin)
+                paragraphs = sample['paragraphs']
+                paragraph = paragraphs[file_para_idx]
+
+                for sentence in paragraph['sentences']:
+                    print '\t' + sentence
+                print '\n'
+
 
 
     def priority(self, operator):

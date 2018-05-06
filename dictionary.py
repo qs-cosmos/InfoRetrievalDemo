@@ -10,9 +10,10 @@ class Dictionary(object):
     '''
 
     def __init__(self):
-        self.lyrics_path = "data/lyrics/"
-        self.stop_words = ['a', 'am', 'an', 'is', 'are',
-                           'as', 'at', 'and', 'be']
+        self.lyrics_path = "data/lyrics/raw/"
+        self.processed_lyrics_path = "data/lyrics/processed/"
+        self.stop_words = [u'a', u'am', u'an', u'is', u'are',
+                           u'as', u'at', u'and', u'be']
 
         self.regex = "\n*\t*( )*[,，\.。、~\_\-：:《》！!<>?？;；'\"'‘’“”/\\\[\]【】「」\{\}\(\)（）]*( )*\t*\n*"
         self.ps = PorterStemmer()
@@ -22,14 +23,55 @@ class Dictionary(object):
         get the filenames of lyrics and
         save into database
         '''
+
         self.lyric_files = os.listdir(self.lyrics_path)
+        self.lyrics_file_paras = []
 
-        # create table
-        cursor.execute('CREATE TABLE IF NOT EXISTS lyric_files (file_id INTEGER PRIMARY KEY, file_name text)')
-
-        # insert into database
         for fidx, lyric_file in enumerate(self.lyric_files):
-            cursor.execute('INSERT INTO lyric_files (file_id, file_name) VALUES (?, ?)', (fidx, lyric_file))
+            with open(self.lyrics_path + lyric_file) as fin:
+                sample = json.load(fin)
+                self.lyrics_file_paras.append(len(sample['paragraphs']))
+
+
+        # check whether the lyric file table exists
+        result = cursor.execute('SELECT count(*) FROM sqlite_master WHERE type=\'table\' AND name=\'lyric_files\'')
+        result = result.fetchall()
+
+        if result[0][0] == 0:
+            # create table
+            cursor.execute('CREATE TABLE IF NOT EXISTS lyric_files (file_para_id INTEGER PRIMARY KEY, file_name text, para_id int)')
+
+            # insert into database
+            for fidx, lyric_file in enumerate(self.lyric_files):
+                for para_id in range(self.lyrics_file_paras[fidx]):
+                    cursor.execute('INSERT INTO lyric_files (file_name, para_id) VALUES (?, ?)', (lyric_file, para_id))
+
+
+    def process_lyrics(self):
+        '''
+        process lyrics, turn the sentences into stemmed words,
+        for future query
+        '''
+
+        for fidx, lyric_file in enumerate(self.lyric_files):
+            with open(self.lyrics_path + lyric_file) as fin:
+                sample = json.load(fin)
+                new_sample = {}
+                new_sample['title'] = sample['title']
+                new_sample['paragraphs'] = []
+                for pidx, paragraph in enumerate(sample['paragraphs']):
+                    new_paragraph = {}
+                    new_paragraph['sentences'] = []
+                    sentences = paragraph['sentences']
+                    for sentence in sentences:
+                        words = self.word_split(sentence)
+                        stemmed_words = [self.ps.stem(word) for word in words]
+                        new_paragraph['sentences'].append(stemmed_words)
+                    new_sample['paragraphs'].append(new_paragraph)
+
+
+                with open(self.processed_lyrics_path + lyric_file, 'w+') as fout:
+                    json.dump(new_sample, fout)
 
 
     def word_split(self, sentence):
@@ -49,41 +91,56 @@ class Dictionary(object):
         # stop words table
         words = [word for word in words if word not in self.stop_words]
 
-        # stem words
-        words = [self.ps.stem(word) for word in words]
-
         return words
 
 
     def gen_raw_words(self):
         '''
-        get all words from lyrics files
-        :return: lists of words
+        generate raw words from lyric files
         '''
         words = []
         for fidx, lyric_file in enumerate(self.lyric_files):
             with open(self.lyrics_path + lyric_file) as fin:
                 sample = json.load(fin)
-                sample_words = []
                 paragraphs = sample['paragraphs']
                 for paragraph in paragraphs:
+                    para_words = []
                     sentences = paragraph['sentences']
                     for sentence in sentences:
-                        sample_words.extend(self.word_split(sentence))
-                words.append(sample_words)
-        self.words = words
+                        para_words.extend(self.word_split(sentence))
+                    words.append(para_words)
 
-    def gen_vocab(self):
+        self.raw_words = words
+
+
+    def gen_stemmed_words(self):
         '''
-        generate vocabulary from words
-        :param words:
+        generate stemmed words from lyric files
+        '''
+        self.stemmed_words = []
+        for line in self.raw_words:
+            self.stemmed_words.append([self.ps.stem(word) for word in line])
+
+
+    def gen_raw_vocab(self):
+        '''
+        generate vocabulary from raw words
         '''
         vocab = set()
-        for lyric_words in self.words:
+        for lyric_words in self.raw_words:
             for word in lyric_words:
                 vocab.add(word)
-        self.vocab = sorted(vocab)
+        self.raw_vocab = sorted(vocab)
 
+    def gen_stemmed_vocab(self):
+        '''
+        generate vocabulary from stemmed words
+        '''
+        vocab = set()
+        for lyric_words in self.stemmed_words:
+            for word in lyric_words:
+                vocab.add(word)
+        self.stemmed_vocab = sorted(vocab)
 
     def words_clean(self):
         '''
@@ -98,22 +155,56 @@ class Dictionary(object):
     def save_word_count(self, cursor):
         '''
         count words occurance and save to database
-        :return:
         '''
-        # create table
-        cursor.execute('CREATE TABLE IF NOT EXISTS word_count (word text PRIMARY KEY, count int)')
-        cursor.execute('CREATE TABLE IF NOT EXISTS word_file_count (word text, file_id int, count int, PRIMARY KEY(word, file_id))')
+        # check whether the word_file_count table exists
+        result = cursor.execute('SELECT count(*) FROM sqlite_master WHERE type=\'table\' AND name=\'word_file_count\'')
+        result = result.fetchall()
 
-        for vocab_word in self.vocab:
-            # total count of occurance of a vocab_word
-            count = 0
+        if result[0][0] == 0:
+            # create table
+            cursor.execute('CREATE TABLE IF NOT EXISTS word_count (word text PRIMARY KEY, count int)')
+            cursor.execute('CREATE TABLE IF NOT EXISTS word_file_count (word text, file_para_id int, count int, PRIMARY KEY(word, file_para_id))')
 
-            for lidx, lyric_words in enumerate(self.words):
-                cnt = lyric_words.count(vocab_word)
-                count += cnt
-                if cnt > 0:
-                    cursor.execute('INSERT INTO word_file_count (word, file_id, count) VALUES (?, ?, ?)',
-                                (vocab_word, lidx, cnt))
+            for vocab_word in self.stemmed_vocab:
+                # total count of occurance of a vocab_word
+                count = 0
 
-            cursor.execute('INSERT INTO word_count (word, count) VALUES (?, ?)',
-                           (vocab_word, count))
+                for lidx, lyric_words in enumerate(self.stemmed_words):
+                    cnt = lyric_words.count(vocab_word)
+                    count += cnt
+                    if cnt > 0:
+                        cursor.execute('INSERT INTO word_file_count (word, file_para_id, count) VALUES (?, ?, ?)',
+                                    (vocab_word, lidx+1, cnt))
+
+                cursor.execute('INSERT INTO word_count (word, count) VALUES (?, ?)',
+                               (vocab_word, count))
+
+
+    def save_b_gram(self, cursor):
+        '''
+        save the b-gram information of words into database
+        '''
+
+        # check whether the lyric file table exists
+        result = cursor.execute('SELECT count(*) FROM sqlite_master WHERE type=\'table\' AND name=\'word_b_gram\'')
+        result = result.fetchall()
+
+        if result[0][0] == 0:
+            # b-gram data to insert
+            b_grams = []
+
+            for word in self.raw_vocab:
+                new_word = "$" + word + "$"
+                for i in range(len(new_word)-1):
+                    b_gram = new_word[i: i+2]
+                    b_grams.append((b_gram, word))
+
+            # create table
+            cursor.execute('CREATE TABLE IF NOT EXISTS word_b_gram (b_gram text, word text, PRIMARY KEY(b_gram, word))')
+
+            # create index
+            cursor.execute('CREATE INDEX b_gram_index on word_b_gram (b_gram)')
+
+            b_grams = list(set(b_grams))
+            # insert data
+            cursor.executemany('INSERT INTO word_b_gram (b_gram, word) VALUES (?, ?)', b_grams)

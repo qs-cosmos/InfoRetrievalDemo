@@ -36,11 +36,19 @@ def prepare(args):
     # save file index
     dic.save_file_idx(cursor)
 
-    # get raw words
+    # process lyrics
+    #dic.process_lyrics()
+
+    # genetate words
     dic.gen_raw_words()
+    dic.gen_stemmed_words()
 
     # generate vocab
-    dic.gen_vocab()
+    dic.gen_raw_vocab()
+    dic.gen_stemmed_vocab()
+
+    # save word b-gram
+    dic.save_b_gram(cursor)
 
     # save word count
     dic.save_word_count(cursor)
@@ -55,14 +63,14 @@ def query(args):
     db = Database()
     conn, cursor = db.handler()
 
-    analyzer = QueryAnalyzer()
+    analyzer = QueryAnalyzer(cursor)
     while True:
         query_str = raw_input("Query>> ")
         if query_str == 'exit':
             print("Bye~")
             break
         else:
-            analyzer.analyze(query_str, conn)
+            analyzer.analyze(query_str)
 
     conn.commit()
     conn.close()
