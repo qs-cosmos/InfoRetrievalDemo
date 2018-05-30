@@ -217,8 +217,6 @@ class QueryAnalyzer(object):
         for (file_name, file_para_idx) in results:
             # cut .json
             lyric_name = file_name[: -5]
-            # substitute '_' with ' '
-            re.sub(r'_', ' ', lyric_name)
 
             # display query results
             print "found in " + lyric_name + ", paragraph " + str(file_para_idx + 1) + '\n'

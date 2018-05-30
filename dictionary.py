@@ -82,14 +82,14 @@ class Dictionary(object):
         '''
         words = re.split(r',| ', sentence)
 
+        # stop words table
+        words = [word for word in words if word not in self.stop_words]
+
         # reduce regex
         words = [re.subn(self.regex, "", word)[0] for word in words]
 
         # to lower case
         words = [word.lower() for word in words if word != u'']
-
-        # stop words table
-        words = [word for word in words if word not in self.stop_words]
 
         return words
 
@@ -142,14 +142,7 @@ class Dictionary(object):
                 vocab.add(word)
         self.stemmed_vocab = sorted(vocab)
 
-    def words_clean(self):
-        '''
-        clean raw words
-        :return: cleaned words
-        '''
-        # TODO
-        cleaned_words = []
-        return cleaned_words
+
 
 
     def save_word_count(self, cursor):
@@ -165,19 +158,33 @@ class Dictionary(object):
             cursor.execute('CREATE TABLE IF NOT EXISTS word_count (word text PRIMARY KEY, count int)')
             cursor.execute('CREATE TABLE IF NOT EXISTS word_file_count (word text, file_para_id int, count int, PRIMARY KEY(word, file_para_id))')
 
-            for vocab_word in self.stemmed_vocab:
-                # total count of occurance of a vocab_word
-                count = 0
+            # map reduce count
+            word_count = dict()
+            word_file_count = dict()
 
-                for lidx, lyric_words in enumerate(self.stemmed_words):
-                    cnt = lyric_words.count(vocab_word)
-                    count += cnt
-                    if cnt > 0:
-                        cursor.execute('INSERT INTO word_file_count (word, file_para_id, count) VALUES (?, ?, ?)',
-                                    (vocab_word, lidx+1, cnt))
+            for pidx, paragraph in enumerate(self.stemmed_words):
+                for word in paragraph:
+                    if word in word_count:
+                        word_count[word] += 1
+                    else:
+                        word_count[word] = 1
 
+                    if (word, pidx + 1) in word_file_count:
+                        word_file_count[(word, pidx + 1)] += 1
+                    else:
+                        word_file_count[(word, pidx + 1)] = 1
+
+            sorted(word_count)
+            sorted(word_file_count)
+
+            for key in word_count:
                 cursor.execute('INSERT INTO word_count (word, count) VALUES (?, ?)',
-                               (vocab_word, count))
+                               (key, word_count[key]))
+
+            for key in word_file_count:
+                cursor.execute('INSERT INTO word_file_count (word, file_para_id, count) VALUES (?, ?, ?)',
+                               (key[0], key[1], word_file_count[key]))
+
 
 
     def save_b_gram(self, cursor):
