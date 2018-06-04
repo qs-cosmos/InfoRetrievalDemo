@@ -107,3 +107,4 @@ venv.bak/
 *.think.md
 *Test*
 *.swp
+temp/
