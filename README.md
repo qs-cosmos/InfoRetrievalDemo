@@ -1,4 +1,4 @@
-# InfoRetrivalDemo
+# InfoRetrievalDemo
 
 ## 简介
 
