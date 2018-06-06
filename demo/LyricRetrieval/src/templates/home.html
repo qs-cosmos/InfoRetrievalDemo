@@ -1,0 +1,29 @@
+<!doctype html>
+
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <link rel="stylesheet" href="{{ url_for('static', filename='bootstrap-3.3.7/css/bootstrap.min.css') }}">
+        <link rel="stylesheet" href="{{ url_for('static', filename='bootstrap-3.3.7/css/offcanvas.css') }}" >
+    </head>
+    <body style="background-color: rgba(0,0,0,0.82) ">
+        <div class="container col-lg-offset-4 col-lg-4"  >
+            <div class="row" style="text-align: center;">
+                <img src="static/images/logo3_transparent.png" style="height: 357px; width: 555px;"/>
+            </div>
+            <div class="row">
+                <form action="/search" >
+                    <div class="col-lg-10" style="padding: 0px">
+                        <input type="text" class="form-control"  name="query"
+                               style="color: black; padding: 25px; font-size: 25px"/>
+                    </div>
+                    <div class="col-lg-2" style="padding: 0px">
+                        <input type="submit" class="btn btn-info" value="搜索"
+                               style="padding: 10px 30px; font-size: 20px; margin-left: 10px"/>
+                    </div>
+                    <input type="hidden" value="1" name="page"/>
+                </form>
+            </div>
+        </div>
+    </body>
+</html>

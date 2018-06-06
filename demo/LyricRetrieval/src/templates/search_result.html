@@ -1,0 +1,81 @@
+<!doctype html>
+
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <link rel="stylesheet" href="{{ url_for('static', filename='bootstrap-3.3.7/css/bootstrap.min.css') }}">
+        <link rel="stylesheet" href="{{ url_for('static', filename='bootstrap-3.3.7/css/offcanvas.css') }}" >
+    </head>
+    <body>
+        <div class="container col-lg-12">
+            <div class="row" 
+                 style=" padding: 10px 0px; background-color: rgba(215,215,215,0.19);border-bottom: 1px solid rgba(198,198,198,0.97)">
+                <form action="/search" >
+                    <div class="col-lg-1" style="text-align: center; padding: 0;">
+                        <a href="/">
+                            <img src="static/images/logo3_transparent.png" style="height: 77px; width: 120px;"/>
+                        </a>
+                    </div>
+                    <div class="col-lg-6" style="padding: 0px; ">
+                        <input type="text" class="form-control"  value="{{ query }}" name="query"
+                               style="color: black; padding: 25px; font-size: 25px; margin: 15px 0"/>
+                    </div>
+                    <div class="col-lg-2" style="padding: 0px">
+                        <input type="submit" class="btn btn-info" value="搜索"
+                               style="padding: 10px 25px; font-size: 20px;margin: 15px 0px ;margin-left: 10px"/>
+                    </div>
+                    <input type="hidden" value="1" name="page"/>
+                </form>
+            </div>
+
+            <div class="row">
+                <div class="col-lg-offset-1" style="margin-top: 15px">
+                    <p>
+                        找到约{{ amount }}条结果,
+                        {% if last_page %}
+                            以下是最后一页
+                        {% else %}
+                            以下是第{{ page }}页
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+
+            <div class="row" style="margin-top: 10px">
+                {% for  record in records %}
+                    <div class="col-lg-offset-1" style="margin-bottom: 32px">
+                        {# 标题 #}
+                        <h4 id="title" style="margin-bottom: 0; font-size: 20px">
+                            <a href="{{ record[1] }}">
+                                {{ record[0] }}
+                            </a>
+                        </h4>
+                        {# 索引 #}
+                        <p id="index" style="margin: 0;color: green; font-size: 15px">{{ record[1] }}</p>
+                        {# 内容 #}
+                        <p id="content" style="font-size: 17px">{{ record[2] }}</p>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <div class="row">
+                <div class="col-lg-offset-1">
+                    <ul class="pagination">
+                        {% for next_page in pages %}
+                            <li>
+                                {% if next_page != page %}
+                                    <a href="/search?query={{ query }}&page={{ next_page }}">
+                                        {{ next_page }}
+                                    </a>
+                                {% else %}
+                                    <a style="color: black">{{ next_page }}</a>
+                                {% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+    </body>
+</html>

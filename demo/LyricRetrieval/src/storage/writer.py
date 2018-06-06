@@ -1,7 +1,8 @@
 # coding: utf-8
 
 from structure import FileSystem
-import json, os
+from database import LyricDatabase
+import json, os, time
 
 '''
 ModelWriter
@@ -17,30 +18,44 @@ class ModelWriter(object):
     def __init__(self):
         self.fileSystem = FileSystem()
 
-    def prepare(self, docId, title, content):
+    def prepare(self, docId, title, content, title_prefixs, content_prefixs):
+        self.doc_amount = self.fileSystem.doc_amount
         self.docId = docId
         self.title = title
         self.content = content
+        self.title_prefixs = title_prefixs
+        self.content_prefixs = content_prefixs
         self.keys = {}
         for key in self.title.keys() + self.content.keys():
             if self.keys.get(key) is None:
                 self.keys[key] = 1
-    '''
-    返回值: 
-    - True : ok
-    - False : fail
-    '''
+        self.keys = self.keys.keys()
+
     def write(self):
         if self.content is None or self.title is None or self.docId is None:
-            return False
-        if self.word_doc_tf():
-            self.words_doc_amount()
+            return
+        self.words_doc_amount()
+        self.word_doc_tf()
+        self.word_prefix_word()
+        
+    '''
+    原始语料备份
+    '''
+    def backup(self, docId, title, content):
+        if self.doc_amount == 0:
+            raw_lyrics_json = {}
         else:
-            return False
+            with open(self.fileSystem.raw_lyrics_json, "r") as raw_lyrics:
+                raw_lyrics_json = json.load(raw_lyrics)
+        lyric = {'title':title, 'content':content}
+        raw_lyrics_json[docId] = lyric
+        with open(self.fileSystem.raw_lyrics_json, "w") as raw_lyrics:
+            json.dump(raw_lyrics_json, raw_lyrics, 
+                    sort_keys=True, indent=4, separators=(',', ':'))
 
     def words_doc_amount(self):
 
-        if self.fileSystem.doc_amount == 0:
+        if self.doc_amount == 0:
             words_doc_amount_json = {}
         else:
             with open(self.fileSystem.words_doc_amount, "r") as words_doc_amount:
@@ -71,18 +86,14 @@ class ModelWriter(object):
             words_doc_amount_json[key] = temp
 
         # 删除旧的words_<doc_amount>.json 文件
-        doc_amount = self.fileSystem.doc_amount + 1
+        doc_amount = self.doc_amount + 1
         os.remove(self.fileSystem.words_doc_amount)
 
         with open(self.fileSystem.model_path + "words_%d.json" % doc_amount, 
                   "w") as new_words_doc_amount:
             json.dump(words_doc_amount_json, new_words_doc_amount,
                       sort_keys=True, indent=4, separators=(',', ':'))
-    '''
-    返回值
-    - True : 正常
-    - False : docId重复
-    '''
+
     def word_doc_tf(self):
         for key in self.keys:
             filepath = self.fileSystem.word_doc_tf + key + ".json"
@@ -91,9 +102,6 @@ class ModelWriter(object):
             else:
                 with open(filepath, "r") as word_doc_tf:
                     word_doc_tf_json = json.load(word_doc_tf)
-            if word_doc_tf_json.get(self.docId) is not None:
-                print("False")
-                return False
 
             temp = {}
             
@@ -114,3 +122,60 @@ class ModelWriter(object):
                 json.dump(word_doc_tf_json, word_doc_tf,
                       sort_keys=True, indent=4, separators=(',', ':'))
         return True
+    
+    def word_prefix_word(self):
+        for key in self.keys:
+            filepath = self.fileSystem.word_prefix_word + key + ".json"
+            if not os.path.exists(filepath):
+                word_prefix_word_json = {}
+            else:
+                with open(filepath, "r") as word_prefix_word:
+                    word_prefix_word_json = json.load(word_prefix_word)
+            
+            if self.title_prefixs.get(key) is not None:
+                for c_key in self.title_prefixs.get(key).keys():
+                    index = word_prefix_word_json.get(c_key)
+                    if index is None:
+                        index = str(int(time.time() * 10000000))
+                        word_prefix_word_json[c_key] = index
+                    self.prefix_doc_tf(index, key, c_key)
+
+            if self.content_prefixs.get(key) is not None:
+                for c_key in self.content_prefixs.get(key).keys():
+                    index = word_prefix_word_json.get(c_key)
+                    if index is None:
+                        index = str(int(time.time() * 10000000))
+                        word_prefix_word_json[c_key] = index
+                    self.prefix_doc_tf(index, key, c_key)
+            
+            with open(filepath, "w") as word_prefix_word:
+                json.dump(word_prefix_word_json, word_prefix_word, 
+                        sort_keys=True, indent=4, separators=(',', ':'))
+
+    def prefix_doc_tf(self, index, p_key, c_key):
+        filepath = self.fileSystem.prefix_doc_tf + index + ".json"
+        if not os.path.exists(filepath):
+            prefix_doc_tf_json = {}
+        else:
+            with open(filepath, "r") as prefix_doc_tf:
+                prefix_doc_tf_json = json.load(prefix_doc_tf)
+        try:
+            title_prefix_tf = self.title_prefixs.get(p_key).get(c_key)
+            if title_prefix_tf is None:
+                title_prefix_tf = 0
+        except AttributeError:
+            title_prefix_tf = 0
+
+        try:
+            content_prefix_tf = self.content_prefixs.get(p_key).get(c_key)
+            if content_prefix_tf is None:
+                content_prefix_tf = 0
+        except AttributeError:
+            content_prefix_tf = 0
+        
+        if prefix_doc_tf_json.get(self.docId) is None:
+            prefix_doc_tf_json[self.docId] = {"title": title_prefix_tf, "content":content_prefix_tf}
+            
+            with open(filepath, "w") as prefix_doc_tf:
+                json.dump(prefix_doc_tf_json, prefix_doc_tf,
+                        sort_keys=True, indent=4, separators=(',', ':'))

@@ -46,7 +46,7 @@ class Downloader(object):
             'User-Agent':self.__user_agent
         }
 
-    def request(self, seed, allow_redirects=True):
+    def request(self, seed, allow_redirects=True, time_out=20):
         
         self.__logger.info('Start requesting %s ' % seed)
         if not isinstance(seed, str):
@@ -72,7 +72,7 @@ class Downloader(object):
             try:
                 time.sleep(1)
                 r =  requests.get(seed, proxies=self.__proxies, \
-                        headers=self.__headers, allow_redirects=allow_redirects)
+                        headers=self.__headers, allow_redirects=allow_redirects, timeout=time_out)
                 self.__logger.info('Request %s successfully.' % seed)
                 return r
 
@@ -90,7 +90,7 @@ class Downloader(object):
             try:
                 time.sleep(1)
                 r =  requests.get(seed, proxies=self.__proxies, \
-                        headers=self.__headers, allow_redirects=allow_redirects)
+                        headers=self.__headers, allow_redirects=allow_redirects, timeout=time_out)
                 self.__logger.info('Request %s successfully.' % seed)
                 return r
 

@@ -11,4 +11,3 @@ DEFAULT_DATABASE_NAME = "data.db"
 
 # IR 模型数据
 MODEL = GEN + "model/"
-

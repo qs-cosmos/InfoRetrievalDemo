@@ -19,4 +19,4 @@ if __name__ == '__main__':
     # analyser 测试
     analyse_scheduler(10)
     '''
-    scheduler(3, 1)
+    scheduler(3, 1, analyser=False)
