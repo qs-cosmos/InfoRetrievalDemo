@@ -10,9 +10,9 @@ app = Flask(__name__)
 model = LanguageModel()
 lyrics_json = model.reader.lyrics
 @app.route('/search', methods=['GET', 'POST'])
-@app.route('/search/<records>/<query>/<amount>/<page>/<last_page>/<pages>', methods=['GET', 'POST'])
+@app.route('/search/<records>/<query>/<amount>/<page>/<last_page>/<pages>/<query_time>', methods=['GET', 'POST'])
 def search(records=None, query=None, amount=None,
-           page=None, last_page=None, pages=None):
+           page=None, last_page=None, pages=None, query_time=None):
     page_size = 12
     page_amount = 8
     last_page = False
@@ -22,9 +22,10 @@ def search(records=None, query=None, amount=None,
         page = 1
     else:
         page = int(page)
-    
+    start_time = time.time()
     records = model.query(query)
-    
+    end_time = time.time()
+    query_time = "%.2f" % (end_time - start_time)
     # 查询结果总数
     amount = len(records)
 
@@ -63,14 +64,13 @@ def search(records=None, query=None, amount=None,
     elif page <= (page_amount / 2) and max_page > page_amount:
         start_page = 1
         end_page = 9
-    elif page <= (page_amount / 2) and max_page < page_amount:
+    elif page <= (page_amount / 2) or max_page < page_amount:
         start_page = 1
         end_page = max_page + 1
-
+        
     pages = range(start_page, end_page)
-
     return render_template("search_result.html", query = query, records = records,
-                           amount=amount,page=page, last_page=last_page, pages=pages)
+                           amount=amount,page=page, last_page=last_page, pages=pages, query_time=query_time)
 
 @app.route('/')
 def home():

@@ -31,12 +31,13 @@
             <div class="row">
                 <div class="col-lg-offset-1" style="margin-top: 15px">
                     <p>
-                        找到约{{ amount }}条结果,
+                        找到约{{ amount }}条结果
                         {% if last_page %}
-                            以下是最后一页
+                            ,以下是最后一页
                         {% else %}
-                            以下是第{{ page }}页
+                            ,以下是第{{ page }}页
                         {% endif %}
+                        (用时{{ query_time }}秒)
                     </p>
                 </div>
             </div>
